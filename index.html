@@ -4,38 +4,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Postos Próximos - BTR</title>
+  <title>Postos Autorizados - BTR</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 1rem; background: #f9f9f9; }
     h1 { font-size: 1.5rem; }
-    .controls { margin: 1rem 0; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
-    button { padding: 0.5rem; font-size: 1rem; }
     .posto { background: white; margin: 1rem 0; padding: 1rem; border-radius: 8px; box-shadow: 0 0 8px #ccc; }
-    .language-toggle { cursor: pointer; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
     .contact-button {
       position: fixed; bottom: 20px; right: 20px; background: #25D366; color: white;
       padding: 0.75rem 1rem; border: none; border-radius: 50px; font-size: 1rem; cursor: pointer;
     }
   </style>
 </head>
-<body onload="location.href = location.href.split('?')[0] + '?r=' + Math.random();">
-  <div class="controls">
-    <h1 id="title">Postos autorizados mais próximos</h1>
-    <button onclick="getLocation()" id="refreshBtn">Atualizar localização</button>
-    <span class="language-toggle" onclick="toggleLanguage()">🌐 PT / ES</span>
-  </div>
-  <div id="resultado">Buscando localização...</div>
+<body>
+  <h1>Postos autorizados mais próximos</h1>
+  <div id="resultado">Carregando...</div>
   <button class="contact-button" onclick="openContact()">📞 Frota</button>
+
   <script>
-    let currentLang = 'pt';
     let currentCoords = { latitude: null, longitude: null };
-    const postos = [
-      { nome: "Posto GP", cidade: "Juranda", lat: -24.347303, lng: -52.734351 },
-      { nome: "Posto Idaza", cidade: "Foz do Iguaçu", lat: -25.503347, lng: -54.539150 },
-      { nome: "Posto Gasparin", cidade: "Foz do Iguaçu", lat: -25.486981, lng: -54.503001 },
-      { nome: "Auto Posto Rudnick", cidade: "Joinville", lat: -26.184622, lng: -48.908641 },
-      { nome: "Graal GP", cidade: "Piçarras", lat: -26.779005, lng: -48.684201 }
-    ];
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRLKVeC1QjUkL1nehNmkXnp3ispScnVn3ZLTdmi-JjVar1h9ANY5eY5VxarxbW0v39DWKcZ6dLq7zFQ/pub?output=csv";
+
     function calcularDistancia(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -46,44 +34,58 @@
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
-    function mostrarPostos(userLat, userLng) {
-      currentCoords = { latitude: userLat, longitude: userLng };
+
+    function fetchPlanilha() {
+      fetch(csvUrl)
+        .then(response => response.text())
+        .then(data => {
+          const rows = data.trim().split('\n');
+          const headers = rows[0].split(',');
+          const postos = rows.slice(1).map(row => {
+            const values = row.split(',');
+            const obj = {};
+            headers.forEach((h, i) => obj[h.trim()] = values[i]?.trim());
+            return obj;
+          });
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+              currentCoords.latitude = pos.coords.latitude;
+              currentCoords.longitude = pos.coords.longitude;
+              mostrarPostos(postos);
+            }, () => {
+              document.getElementById("resultado").innerText = "Não foi possível obter sua localização.";
+            });
+          }
+        });
+    }
+
+    function mostrarPostos(postos) {
       const container = document.getElementById("resultado");
       container.innerHTML = "";
+
       const ordenados = postos.map(p => {
-        const dist = calcularDistancia(userLat, userLng, p.lat, p.lng);
-        return { ...p, distancia: dist };
+        const lat = parseFloat(p["Latitude"].replace(/\./g, '').replace(/(\d{2})(\d{6})/, '$1.$2'));
+        const lng = parseFloat(p["Longitude"].replace(/\./g, '').replace(/(\d{2,3})(\d{6})/, '$1.$2'));
+        const dist = calcularDistancia(currentCoords.latitude, currentCoords.longitude, lat, lng);
+        return { ...p, distancia: dist, lat, lng };
       }).sort((a, b) => a.distancia - b.distancia);
+
       ordenados.forEach(p => {
         const div = document.createElement("div");
         div.className = "posto";
         div.innerHTML = `
-          <strong>${p.nome}</strong><br>
-          ${translate("Cidade")}: ${p.cidade}<br>
-          ${translate("Distância")}: ${p.distancia.toFixed(2)} km<br>
+          <strong>${p["Nome do Posto"]}</strong><br>
+          Cidade: ${p["Cidade"]}<br>
+          Distância: ${p.distancia.toFixed(2)} km<br>
+          ${p["Observações"] ? "Obs: " + p["Observações"] + "<br>" : ""}
           <a href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank">
-            <button>${translate("Navegar")}</button>
+            <button>Navegar</button>
           </a>
         `;
         container.appendChild(div);
       });
     }
-    function getLocation() {
-      document.getElementById("resultado").innerText = currentLang === 'pt' ? "Buscando localização..." : "Buscando ubicación...";
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          pos => {
-            const { latitude, longitude } = pos.coords;
-            mostrarPostos(latitude, longitude);
-          },
-          err => {
-            document.getElementById("resultado").innerText = currentLang === 'pt' ? "Não foi possível acessar sua localização." : "No se pudo acceder a su ubicación.";
-          }
-        );
-      } else {
-        document.getElementById("resultado").innerText = currentLang === 'pt' ? "Geolocalização não suportada." : "Geolocalización no soportada.";
-      }
-    }
+
     function openContact() {
       let msg = "Olá! Estou na rota e preciso de ajuda sobre abastecimento.";
       if (currentCoords.latitude && currentCoords.longitude) {
@@ -92,23 +94,8 @@
       const encodedMsg = encodeURIComponent(msg);
       window.open(`https://wa.me/5545988062400?text=${encodedMsg}`, '_blank');
     }
-    function toggleLanguage() {
-      currentLang = currentLang === 'pt' ? 'es' : 'pt';
-      document.getElementById("title").innerText = translate("Postos autorizados mais próximos");
-      document.getElementById("refreshBtn").innerText = translate("Atualizar localização");
-      getLocation();
-    }
-    function translate(text) {
-      const dict = {
-        "Postos autorizados mais próximos": { es: "Estaciones autorizadas más cercanas" },
-        "Atualizar localização": { es: "Actualizar ubicación" },
-        "Cidade": { es: "Ciudad" },
-        "Distância": { es: "Distancia" },
-        "Navegar": { es: "Navegar" }
-      };
-      return currentLang === 'es' && dict[text] ? dict[text].es : text;
-    }
-    window.onload = () => { getLocation(); };
+
+    fetchPlanilha();
   </script>
 </body>
 </html>
