@@ -112,8 +112,12 @@
     }
 
     function openContact() {
-      const msg = encodeURIComponent("Olá! Estou na rota e preciso de ajuda sobre abastecimento.");
-      window.open(`https://wa.me/5545988062400?text=${msg}`, '_blank');
+      let msg = "Olá! Estou na rota e preciso de ajuda sobre abastecimento.";
+      if (currentCoords.latitude && currentCoords.longitude) {
+        msg += ` Minha localização: https://www.google.com/maps?q=${currentCoords.latitude},${currentCoords.longitude}`;
+      }
+      const encodedMsg = encodeURIComponent(msg);
+      window.open(`https://wa.me/5500000000000?text=${encodedMsg}`, '_blank');
     }
 
     function toggleLanguage() {
