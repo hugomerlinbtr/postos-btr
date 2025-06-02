@@ -1,37 +1,59 @@
+
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Postos Próximos - BTR</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 1rem; background: #f5f5f5; }
+    body { font-family: Arial, sans-serif; padding: 1rem; background: #f9f9f9; }
     h1 { font-size: 1.5rem; }
+    .controls { margin: 1rem 0; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+    select, button { padding: 0.5rem; font-size: 1rem; }
     .posto { background: white; margin: 1rem 0; padding: 1rem; border-radius: 8px; box-shadow: 0 0 8px #ccc; }
-    button { margin-top: 0.5rem; padding: 0.5rem 1rem; border: none; background: #007BFF; color: white; border-radius: 4px; cursor: pointer; }
+    .language-toggle { cursor: pointer; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+    .contact-button {
+      position: fixed; bottom: 20px; right: 20px; background: #25D366; color: white;
+      padding: 0.75rem 1rem; border: none; border-radius: 50px; font-size: 1rem; cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>Postos autorizados mais próximos</h1>
+  <div class="controls">
+    <h1 id="title">Postos autorizados mais próximos</h1>
+    <select id="regionFilter">
+      <option value="">Todas as regiões</option>
+      <option value="PR">Paraná</option>
+      <option value="SC">Santa Catarina</option>
+      <option value="RS">Rio Grande do Sul</option>
+      <option value="SP">São Paulo</option>
+      <option value="PY">Paraguai</option>
+    </select>
+    <button onclick="getLocation()" id="refreshBtn">Atualizar localização</button>
+    <span class="language-toggle" onclick="toggleLanguage()">🌐 PT / ES</span>
+  </div>
   <div id="resultado">Buscando localização...</div>
 
+  <button class="contact-button" onclick="openContact()">📞 Frota</button>
+
   <script>
+    let currentLang = 'pt';
+
     const postos = [
-      { nome: "Posto GP", cidade: "Juranda", lat: -24.347303, lng: -52.734351 },
-      { nome: "Posto Idaza", cidade: "Foz do Iguaçu", lat: -25.503347, lng: -54.539150 },
-      { nome: "Posto Gasparin", cidade: "Foz do Iguaçu", lat: -25.486981, lng: -54.503001 },
-      { nome: "Auto Posto Rudnick", cidade: "Joinville", lat: -26.184622, lng: -48.908641 },
-      { nome: "Graal GP", cidade: "Piçarras", lat: -26.779005, lng: -48.684201 }
+      { nome: "Posto GP", cidade: "Juranda", lat: -24.347303, lng: -52.734351, regiao: "PR" },
+      { nome: "Posto Idaza", cidade: "Foz do Iguaçu", lat: -25.503347, lng: -54.539150, regiao: "PR" },
+      { nome: "Posto Gasparin", cidade: "Foz do Iguaçu", lat: -25.486981, lng: -54.503001, regiao: "PR" },
+      { nome: "Auto Posto Rudnick", cidade: "Joinville", lat: -26.184622, lng: -48.908641, regiao: "SC" },
+      { nome: "Graal GP", cidade: "Piçarras", lat: -26.779005, lng: -48.684201, regiao: "SC" }
     ];
 
     function calcularDistancia(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = 
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
@@ -39,40 +61,85 @@
     function mostrarPostos(userLat, userLng) {
       const container = document.getElementById("resultado");
       container.innerHTML = "";
-      
-      const ordenados = postos.map(p => {
+
+      const regiaoSelecionada = document.getElementById("regionFilter").value;
+      let filtrados = postos;
+
+      if (regiaoSelecionada) {
+        filtrados = postos.filter(p => p.regiao === regiaoSelecionada);
+      }
+
+      const ordenados = filtrados.map(p => {
         const dist = calcularDistancia(userLat, userLng, p.lat, p.lng);
         return { ...p, distancia: dist };
       }).sort((a, b) => a.distancia - b.distancia);
+
+      if (ordenados.length === 0) {
+        container.innerHTML = currentLang === 'pt' ? "Nenhum posto encontrado para a região selecionada." : "No se encontraron estaciones en la región seleccionada.";
+        return;
+      }
 
       ordenados.forEach(p => {
         const div = document.createElement("div");
         div.className = "posto";
         div.innerHTML = `
           <strong>${p.nome}</strong><br>
-          Cidade: ${p.cidade}<br>
-          Distância: ${p.distancia.toFixed(2)} km<br>
+          ${translate("Cidade")}: ${p.cidade}<br>
+          ${translate("Distância")}: ${p.distancia.toFixed(2)} km<br>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank">
-            <button>Navegar</button>
+            <button>${translate("Navegar")}</button>
           </a>
         `;
         container.appendChild(div);
       });
     }
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          const { latitude, longitude } = pos.coords;
-          mostrarPostos(latitude, longitude);
-        },
-        err => {
-          document.getElementById("resultado").innerText = "Não foi possível acessar sua localização.";
-        }
-      );
-    } else {
-      document.getElementById("resultado").innerText = "Geolocalização não suportada pelo navegador.";
+    function getLocation() {
+      document.getElementById("resultado").innerText = currentLang === 'pt' ? "Buscando localização..." : "Buscando ubicación...";
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const { latitude, longitude } = pos.coords;
+            mostrarPostos(latitude, longitude);
+          },
+          err => {
+            document.getElementById("resultado").innerText = currentLang === 'pt' ? "Não foi possível acessar sua localização." : "No se pudo acceder a su ubicación.";
+          }
+        );
+      } else {
+        document.getElementById("resultado").innerText = currentLang === 'pt' ? "Geolocalização não suportada." : "Geolocalización no soportada.";
+      }
     }
+
+    function openContact() {
+      const msg = encodeURIComponent("Olá! Estou na rota e preciso de ajuda sobre abastecimento.");
+      window.open(`https://wa.me/5545988062400?text=${msg}`, '_blank');
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'pt' ? 'es' : 'pt';
+      document.getElementById("title").innerText = translate("Postos autorizados mais próximos");
+      document.getElementById("refreshBtn").innerText = translate("Atualizar localização");
+      document.getElementById("regionFilter").options[0].text = translate("Todas as regiões");
+      getLocation();
+    }
+
+    function translate(text) {
+      const dict = {
+        "Postos autorizados mais próximos": { es: "Estaciones autorizadas más cercanas" },
+        "Atualizar localização": { es: "Actualizar ubicación" },
+        "Cidade": { es: "Ciudad" },
+        "Distância": { es: "Distancia" },
+        "Navegar": { es: "Navegar" },
+        "Todas as regiões": { es: "Todas las regiones" }
+      };
+      return currentLang === 'es' && dict[text] ? dict[text].es : text;
+    }
+
+    window.onload = () => {
+      getLocation();
+      document.getElementById("regionFilter").addEventListener("change", getLocation);
+    };
   </script>
 </body>
 </html>
