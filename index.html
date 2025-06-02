@@ -38,6 +38,7 @@
 
   <script>
     let currentLang = 'pt';
+    let currentCoords = { latitude: null, longitude: null };
 
     const postos = [
       { nome: "Posto GP", cidade: "Juranda", lat: -24.347303, lng: -52.734351, regiao: "PR" },
@@ -59,6 +60,7 @@
     }
 
     function mostrarPostos(userLat, userLng) {
+      currentCoords = { latitude: userLat, longitude: userLng };
       const container = document.getElementById("resultado");
       container.innerHTML = "";
 
